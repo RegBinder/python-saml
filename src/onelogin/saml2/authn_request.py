@@ -20,6 +20,9 @@ from onelogin.saml2.errors import OneLogin_Saml2_Error
 
 from xml.dom.minidom import Document, parseString
 
+import dm.xmlsec.binding as xmlsec
+from dm.xmlsec.binding.tmpl import Signature
+
 from lxml.etree import tostring, fromstring
 
 
@@ -143,20 +146,70 @@ class OneLogin_Saml2_Authn_Request(object):
 
             log.debug("Generating AuthnRequest using urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST binding")
 
-            key = settings.get_sp_key()
-            if not key:
-                raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP private key")
-            cert = settings.get_sp_cert()
-            if not key:
-                raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP cert")
-
-            doc = parseString(request)
             if 'signatureAlgorithm' in security:
+                key = settings.get_sp_key()
+                if not key:
+                    raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP private key")
+                cert = settings.get_sp_cert()
+                if not key:
+                    raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP cert")
+                #doc = parseString(request)
                 security_algo = security['signatureAlgorithm']
-                self.__authn_request = OneLogin_Saml2_Utils.add_sign(doc, key, cert, sign_algorithm=security_algo)
+                #self.__authn_request = OneLogin_Saml2_Utils.add_sign(doc, key, cert, sign_algorithm=security_algo, debug=True)
+
+                xmlsec.initialize()
+                xmlsec.set_error_callback(self.print_xmlsec_errors)
+
+                sign_algorithm_transform_map = {
+                    OneLogin_Saml2_Constants.DSA_SHA1: xmlsec.TransformDsaSha1,
+                    OneLogin_Saml2_Constants.RSA_SHA1: xmlsec.TransformRsaSha1,
+                    OneLogin_Saml2_Constants.RSA_SHA256: xmlsec.TransformRsaSha256,
+                    OneLogin_Saml2_Constants.RSA_SHA384: xmlsec.TransformRsaSha384,
+                    OneLogin_Saml2_Constants.RSA_SHA512: xmlsec.TransformRsaSha512
+                }
+                sign_algorithm_transform = sign_algorithm_transform_map.get(security_algo, xmlsec.TransformRsaSha1)
+
+                signature = Signature(xmlsec.TransformExclC14N, sign_algorithm_transform)
+
+                doc = fromstring(request)
+
+                # ID attributes different from xml:id must be made known by the application through a call
+                # to the addIds(node, ids) function defined by xmlsec.
+                xmlsec.addIDs(doc, ['ID'])
+
+                doc.insert(0, signature)
+
+                ref = signature.addReference(xmlsec.TransformSha1, uri="#%s" % uid)
+                ref.addTransform(xmlsec.TransformEnveloped)
+                ref.addTransform(xmlsec.TransformExclC14N)
+
+                key_info = signature.ensureKeyInfo()
+                key_info.addKeyName()
+                key_info.addX509Data()
+
+                dsig_ctx = xmlsec.DSigCtx()
+
+                sign_key = xmlsec.Key.loadMemory(key, xmlsec.KeyDataFormatPem, None)
+
+                from tempfile import NamedTemporaryFile
+                cert_file = NamedTemporaryFile(delete=True)
+                cert_file.write(cert)
+                cert_file.seek(0)
+
+                sign_key.loadCert(cert_file.name, xmlsec.KeyDataFormatPem)
+
+                dsig_ctx.signKey = sign_key
+
+                # Note: the assignment below effectively copies the key
+                dsig_ctx.sign(signature)
+
+                self.__authn_request = tostring(doc)
+                log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
+
+
             else:
-                self.__authn_request = OneLogin_Saml2_Utils.add_sign(doc, key, cert)
-            
+                self.__authn_request = request
+
             log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
 
             # xmlsec.initialize()
