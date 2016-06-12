@@ -18,8 +18,7 @@ from onelogin.saml2.utils import OneLogin_Saml2_Utils
 from onelogin.saml2.constants import OneLogin_Saml2_Constants
 from onelogin.saml2.errors import OneLogin_Saml2_Error
 
-import dm.xmlsec.binding as xmlsec
-from dm.xmlsec.binding.tmpl import Signature
+from xml.dom.minidom import Document, parseString
 
 from lxml.etree import tostring, fromstring
 
@@ -136,6 +135,7 @@ class OneLogin_Saml2_Authn_Request(object):
                       'attr_consuming_service_str': attr_consuming_service_str
                   }
 
+        #from https://github.com/onelogin/python-saml/pull/78. credit to @tachang
         # Only the urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST binding gets the enveloped signature
         if settings.get_idp_data()['singleSignOnService'].get('binding',
                                                               None) == 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST' and \
@@ -143,50 +143,61 @@ class OneLogin_Saml2_Authn_Request(object):
 
             log.debug("Generating AuthnRequest using urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST binding")
 
-            xmlsec.initialize()
-            xmlsec.set_error_callback(self.print_xmlsec_errors)
-
-            signature = Signature(xmlsec.TransformExclC14N, xmlsec.TransformRsaSha1)
-
-            doc = fromstring(request)
-
-            # ID attributes different from xml:id must be made known by the application through a call
-            # to the addIds(node, ids) function defined by xmlsec.
-            xmlsec.addIDs(doc, ['ID'])
-
-            doc.insert(0, signature)
-
-            ref = signature.addReference(xmlsec.TransformSha1, uri="#%s" % uid)
-            ref.addTransform(xmlsec.TransformEnveloped)
-            ref.addTransform(xmlsec.TransformExclC14N)
-
-            key_info = signature.ensureKeyInfo()
-            key_info.addKeyName()
-            key_info.addX509Data()
-
-            # Load the key into the xmlsec context
             key = settings.get_sp_key()
             if not key:
                 raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP private key")
+            cert = settings.get_sp_cert()
+            if not key:
+                raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP cert")
 
-            dsig_ctx = xmlsec.DSigCtx()
-
-            sign_key = xmlsec.Key.loadMemory(key, xmlsec.KeyDataFormatPem, None)
-
-            from tempfile import NamedTemporaryFile
-            cert_file = NamedTemporaryFile(delete=True)
-            cert_file.write(settings.get_sp_cert())
-            cert_file.seek(0)
-
-            sign_key.loadCert(cert_file.name, xmlsec.KeyDataFormatPem)
-
-            dsig_ctx.signKey = sign_key
-
-            # Note: the assignment below effectively copies the key
-            dsig_ctx.sign(signature)
-
-            self.__authn_request = tostring(doc)
+            doc = parseString(request)
+            self.__authn_request = OneLogin_Saml2_Utils.add_sign(doc, key, cert)
             log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
+
+            # xmlsec.initialize()
+            # xmlsec.set_error_callback(self.print_xmlsec_errors)
+            #
+            # signature = Signature(xmlsec.TransformExclC14N, xmlsec.TransformRsaSha1)
+            #
+            # doc = fromstring(request)
+            #
+            # # ID attributes different from xml:id must be made known by the application through a call
+            # # to the addIds(node, ids) function defined by xmlsec.
+            # xmlsec.addIDs(doc, ['ID'])
+            #
+            # doc.insert(0, signature)
+            #
+            # ref = signature.addReference(xmlsec.TransformSha1, uri="#%s" % uid)
+            # ref.addTransform(xmlsec.TransformEnveloped)
+            # ref.addTransform(xmlsec.TransformExclC14N)
+            #
+            # key_info = signature.ensureKeyInfo()
+            # key_info.addKeyName()
+            # key_info.addX509Data()
+            #
+            # # Load the key into the xmlsec context
+            # key = settings.get_sp_key()
+            # if not key:
+            #     raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP private key")
+            #
+            # dsig_ctx = xmlsec.DSigCtx()
+            #
+            # sign_key = xmlsec.Key.loadMemory(key, xmlsec.KeyDataFormatPem, None)
+            #
+            # from tempfile import NamedTemporaryFile
+            # cert_file = NamedTemporaryFile(delete=True)
+            # cert_file.write(settings.get_sp_cert())
+            # cert_file.seek(0)
+            #
+            # sign_key.loadCert(cert_file.name, xmlsec.KeyDataFormatPem)
+            #
+            # dsig_ctx.signKey = sign_key
+            #
+            # # Note: the assignment below effectively copies the key
+            # dsig_ctx.sign(signature)
+
+            #self.__authn_request = tostring(doc)
+            #log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
 
         else:
             self.__authn_request = request
