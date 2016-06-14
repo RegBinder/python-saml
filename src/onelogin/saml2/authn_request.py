@@ -203,7 +203,7 @@ class OneLogin_Saml2_Authn_Request(object):
                 # # Note: the assignment below effectively copies the key
                 dsig_ctx.sign(signature)
                 #
-                # self.__authn_request = tostring(doc)
+                self.__authn_request = tostring(doc)
                 # log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
 
 
