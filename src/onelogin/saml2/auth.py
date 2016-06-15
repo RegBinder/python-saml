@@ -273,7 +273,7 @@ class OneLogin_Saml2_Auth(object):
         return self.__last_request_id
 
     def http_post_login(self, return_to=None, force_authn=False, is_passive=False, set_nameid_policy=True,
-                        use_default_jinga_template=True):
+                        use_default_jinga_template=True,deflate=False):
         """
         Initiates the SSO process.
 
@@ -292,17 +292,18 @@ class OneLogin_Saml2_Auth(object):
         :param use_default_jinga_template: Optional argument. Generate a generic HTML form.
         :type use_default_jinga_template: bool
 
+        :param deflate: Optional argument. Deflate the base64 encoded SAMLRequest. Most HTTP_POST bindings want deflated
+        :type use_default_jinga_template: bool
+
         :returns: parameters or jinga templates
         :rtype: string
-
-
         """
 
         authn_request = OneLogin_Saml2_Authn_Request(self.__settings, force_authn, is_passive, set_nameid_policy)
 
         self.__last_request_id = authn_request.get_id()
 
-        saml_request = authn_request.get_request()
+        saml_request = authn_request.get_request(deflate=deflate)
         parameters = {'SAMLRequest': saml_request}
 
         if return_to is not None:
