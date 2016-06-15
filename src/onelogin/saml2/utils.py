@@ -962,17 +962,17 @@ class OneLogin_Saml2_Utils(object):
 
         newdoc = parseString(etree.tostring(doc))
 
-        # signature_nodes = newdoc.getElementsByTagName("Signature")
-        #
-        # for signature in signature_nodes:
-        #     signature.removeAttribute('xmlns')
-        #     signature.setAttribute('xmlns:ds', OneLogin_Saml2_Constants.NS_DS)
-        #     if not signature.tagName.startswith('ds:'):
-        #         signature.tagName = 'ds:' + signature.tagName
-        #     nodes = signature.getElementsByTagName("*")
-        #     for node in nodes:
-        #         if not node.tagName.startswith('ds:'):
-        #             node.tagName = 'ds:' + node.tagName
+        signature_nodes = newdoc.getElementsByTagName("Signature")
+
+        for signature in signature_nodes:
+             signature.removeAttribute('xmlns')
+             signature.setAttribute('xmlns:ds', OneLogin_Saml2_Constants.NS_DS)
+             if not signature.tagName.startswith('ds:'):
+                 signature.tagName = 'ds:' + signature.tagName
+             nodes = signature.getElementsByTagName("*")
+             for node in nodes:
+                 if not node.tagName.startswith('ds:'):
+                     node.tagName = 'ds:' + node.tagName
 
         return newdoc.saveXML(newdoc.firstChild)
 
