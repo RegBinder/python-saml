@@ -888,7 +888,8 @@ class OneLogin_Saml2_Utils(object):
             print "%s:%d(%s)" % (filename, line, func), " ".join(info)
 
     @staticmethod
-    def add_sign_with_id(xml, uid, key, cert, debug=False, sign_algorithm=OneLogin_Saml2_Constants.RSA_SHA1):
+    def add_sign_with_id(xml, uid, key, cert, debug=False, sign_algorithm=OneLogin_Saml2_Constants.RSA_SHA1,
+                         digest_algorithm=OneLogin_Saml2_Constants.SHA1):
 
         # thanks to https://github.com/onelogin/python-saml/pull/78/files for the help. credit to @tachang
 
@@ -937,7 +938,14 @@ class OneLogin_Saml2_Utils(object):
 
         doc.insert(0, signature)
 
-        ref = signature.addReference(xmlsec.TransformSha1, uri="#%s" % uid)
+        digest_algorithm_transform_map = {
+            OneLogin_Saml2_Constants.SHA1: xmlsec.TransformSha1,
+            OneLogin_Saml2_Constants.SHA256: xmlsec.TransformSha256
+        }
+
+        digest_algorithm_transform = digest_algorithm_transform_map.get(digest_algorithm, xmlsec.TransformRsaSha1)
+
+        ref = signature.addReference(digest_algorithm_transform, uri="#%s" % uid)
         ref.addTransform(xmlsec.TransformEnveloped)
         ref.addTransform(xmlsec.TransformExclC14N)
 

@@ -280,6 +280,9 @@ class OneLogin_Saml2_Settings(object):
         # Signature Algorithm
         self.__security.setdefault('signatureAlgorithm', OneLogin_Saml2_Constants.RSA_SHA1)
 
+        # Digest Method Algorithm
+        self.__security.setdefault('digestMethodAlgorithm', OneLogin_Saml2_Constants.SHA1)
+
         # AttributeStatement required by default
         self.__security.setdefault('wantAttributeStatement', True)
 

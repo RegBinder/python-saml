@@ -155,7 +155,11 @@ class OneLogin_Saml2_Authn_Request(object):
                     raise OneLogin_Saml2_Error("Attempt to sign the AuthnRequest but unable to load the SP cert")
                 doc = parseString(request)
                 security_algo = security['signatureAlgorithm']
-                self.__authn_request = OneLogin_Saml2_Utils.add_sign_with_id(doc, uid, key, cert, sign_algorithm=security_algo, debug=True)
+                digest_method_algo = security['digestMethodAlgorithm']
+                self.__authn_request = OneLogin_Saml2_Utils.add_sign_with_id(doc, uid, key, cert,
+                                                                             sign_algorithm=security_algo,
+                                                                             digest_algorithm=digest_method_algo,
+                                                                             debug=False)
                 log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
             else:
                 self.__authn_request = request
