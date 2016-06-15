@@ -272,6 +272,76 @@ class OneLogin_Saml2_Auth(object):
         """
         return self.__last_request_id
 
+    def http_post_login(self, return_to=None, force_authn=False, is_passive=False, set_nameid_policy=True,
+                        use_default_jinga_template=True):
+        """
+        Initiates the SSO process.
+
+        :param return_to: Optional argument. The target URL the user should be redirected to after login.
+        :type return_to: string
+
+        :param force_authn: Optional argument. When true the AuthNReuqest will set the ForceAuthn='true'.
+        :type force_authn: bool
+
+        :param is_passive: Optional argument. When true the AuthNReuqest will set the Ispassive='true'.
+        :type is_passive: bool
+
+        :param set_nameid_policy: Optional argument. When true the AuthNReuqest will set a nameIdPolicy element.
+        :type set_nameid_policy: bool
+
+        :param use_default_jinga_template: Optional argument. Generate a generic HTML form.
+        :type use_default_jinga_template: bool
+
+        :returns: parameters or jinga templates
+        :rtype: string
+
+
+        """
+
+        authn_request = OneLogin_Saml2_Authn_Request(self.__settings, force_authn, is_passive, set_nameid_policy)
+
+        self.__last_request_id = authn_request.get_id()
+
+        saml_request = authn_request.get_request()
+        parameters = {'SAMLRequest': saml_request}
+
+        if return_to is not None:
+            parameters['RelayState'] = return_to
+        else:
+            parameters['RelayState'] = OneLogin_Saml2_Utils.get_self_url_no_query(self.__request_data)
+
+        security = self.__settings.get_security_data()
+        if security.get('authnRequestsSigned', False):
+            parameters['SigAlg'] = security['signatureAlgorithm']
+            parameters['Signature'] = self.build_request_signature(saml_request, parameters['RelayState'],
+                                                                   security['signatureAlgorithm'])
+            # HTTP-POST binding requires generation of a form
+            if self.get_settings().get_idp_data()['singleSignOnService'].get('binding',
+                                                                             None) == 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST':
+                if use_default_jinga_template:
+                    log.debug("Generating AuthnRequest HTTP-POST binding form")
+
+                    # Return HTML form
+                    template_file = open(join(dirname(__file__), 'templates/authn_request.html'))
+                    template_text = template_file.read()
+                    template = Template(template_text)
+
+                    context = {
+                        'sso_url': self.get_sso_url(),
+                        'saml_request': saml_request,
+                        'relay_state': parameters['RelayState']
+                    }
+
+                    html = template.render(context)
+                    log.debug("Generated HTML: %s" % html)
+
+                    return html
+                else:
+                    return parameters
+
+        return self.redirect_to(self.get_sso_url(), parameters)
+
+
     def login(self, return_to=None, force_authn=False, is_passive=False, set_nameid_policy=True):
         """
         Initiates the SSO process.
