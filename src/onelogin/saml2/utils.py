@@ -890,7 +890,7 @@ class OneLogin_Saml2_Utils(object):
     @staticmethod
     def add_sign_with_id(xml, uid, key, cert, debug=False, sign_algorithm=OneLogin_Saml2_Constants.RSA_SHA1):
 
-        # thanks to https://github.com/onelogin/python-saml/pull/78/files for the help
+        # thanks to https://github.com/onelogin/python-saml/pull/78/files for the help. credit to @tachang
 
         xmlsec.initialize()
         xmlsec.set_error_callback(print_xmlsec_errors)

@@ -156,7 +156,6 @@ class OneLogin_Saml2_Authn_Request(object):
                 doc = parseString(request)
                 security_algo = security['signatureAlgorithm']
                 self.__authn_request = OneLogin_Saml2_Utils.add_sign_with_id(doc, uid, key, cert, sign_algorithm=security_algo, debug=True)
-                                                                          sign_algorithm=security_algo, debug=True)
                 log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
             else:
                 self.__authn_request = request
@@ -164,8 +163,6 @@ class OneLogin_Saml2_Authn_Request(object):
             log.debug("Generated AuthnRequest: {}".format(self.__authn_request))
         else:
             self.__authn_request = request
-
-
 
     def get_request(self, deflate=True):
         """
