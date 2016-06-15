@@ -811,6 +811,7 @@ class OneLogin_Saml2_Utils(object):
             raise Exception('Error parsing xml string')
 
         xmlsec.initialize()
+        #xmlsec.base_64_set_default_line_size(0)
 
         if debug:
             xmlsec.set_error_callback(print_xmlsec_errors)
@@ -835,6 +836,222 @@ class OneLogin_Saml2_Utils(object):
             elem[0].insert(0, signature)
 
         ref = signature.addReference(xmlsec.TransformSha1)
+        ref.addTransform(xmlsec.TransformEnveloped)
+        ref.addTransform(xmlsec.TransformExclC14N)
+
+        key_info = signature.ensureKeyInfo()
+        key_info.addX509Data()
+
+        dsig_ctx = xmlsec.DSigCtx()
+        sign_key = xmlsec.Key.loadMemory(key, xmlsec.KeyDataFormatPem, None)
+
+        file_cert = OneLogin_Saml2_Utils.write_temp_file(cert)
+        sign_key.loadCert(file_cert.name, xmlsec.KeyDataFormatCertPem)
+        file_cert.close()
+
+        dsig_ctx.signKey = sign_key
+        dsig_ctx.sign(signature)
+
+        newdoc = parseString(etree.tostring(elem))
+
+        signature_nodes = newdoc.getElementsByTagName("Signature")
+
+        for signature in signature_nodes:
+            signature.removeAttribute('xmlns')
+            signature.setAttribute('xmlns:ds', OneLogin_Saml2_Constants.NS_DS)
+            if not signature.tagName.startswith('ds:'):
+                signature.tagName = 'ds:' + signature.tagName
+            nodes = signature.getElementsByTagName("*")
+            for node in nodes:
+                if not node.tagName.startswith('ds:'):
+                    node.tagName = 'ds:' + node.tagName
+
+        return newdoc.saveXML(newdoc.firstChild)
+
+    def print_xmlsec_errors(self, filename, line, func, errorObject, errorSubject, reason, msg):
+        # this would give complete but often not very usefull) information
+        print "%(filename)s:%(line)d(%(func)s) error %(reason)d obj=%(errorObject)s subject=%(errorSubject)s: %(msg)s" % locals()
+        # the following prints if we get something with relation to the application
+
+        info = []
+
+        if errorObject != "unknown":
+            info.append("obj=" + errorObject)
+
+        if errorSubject != "unknown":
+            info.append("subject=" + errorSubject)
+
+        if msg.strip():
+            info.append("msg=" + msg)
+
+        if info:
+            print "%s:%d(%s)" % (filename, line, func), " ".join(info)
+
+    @staticmethod
+    def add_sign_with_id_2(xml, uid, key, cert, debug=False, sign_algorithm=OneLogin_Saml2_Constants.RSA_SHA1):
+
+
+        xmlsec.initialize()
+        xmlsec.set_error_callback(print_xmlsec_errors)
+        #
+        sign_algorithm_transform_map = {
+             OneLogin_Saml2_Constants.DSA_SHA1: xmlsec.TransformDsaSha1,
+             OneLogin_Saml2_Constants.RSA_SHA1: xmlsec.TransformRsaSha1,
+             OneLogin_Saml2_Constants.RSA_SHA256: xmlsec.TransformRsaSha256,
+             OneLogin_Saml2_Constants.RSA_SHA384: xmlsec.TransformRsaSha384,
+             OneLogin_Saml2_Constants.RSA_SHA512: xmlsec.TransformRsaSha512
+         }
+        sign_algorithm_transform = sign_algorithm_transform_map.get(sign_algorithm, xmlsec.TransformRsaSha1)
+
+        signature = Signature(xmlsec.TransformExclC14N, xmlsec.TransformRsaSha1)
+
+        if xml is None or xml == '':
+            raise Exception('Empty string supplied as input')
+        elif isinstance(xml, etree._Element):
+            doc = xml
+        elif isinstance(xml, Document):
+            xml = xml.toxml()
+            doc= fromstring(str(xml))
+        elif isinstance(xml, Element):
+            xml.setAttributeNS(
+                unicode(OneLogin_Saml2_Constants.NS_SAMLP),
+                'xmlns:samlp',
+                unicode(OneLogin_Saml2_Constants.NS_SAMLP)
+            )
+            xml.setAttributeNS(
+                unicode(OneLogin_Saml2_Constants.NS_SAML),
+                'xmlns:saml',
+                unicode(OneLogin_Saml2_Constants.NS_SAML)
+            )
+            xml = xml.toxml()
+            doc = fromstring(str(xml))
+        elif isinstance(xml, basestring):
+            doc = fromstring(str(xml))
+        else:
+            raise Exception('Error parsing xml string')
+
+        # # ID attributes different from xml:id must be made known by the application through a call
+        # # to the addIds(node, ids) function defined by xmlsec.
+        xmlsec.addIDs(doc, ['ID'])
+
+        doc.insert(0, signature)
+
+        ref = signature.addReference(xmlsec.TransformSha1, uri="#%s" % uid)
+        ref.addTransform(xmlsec.TransformEnveloped)
+        ref.addTransform(xmlsec.TransformExclC14N)
+
+        key_info = signature.ensureKeyInfo()
+        key_info.addKeyName()
+        key_info.addX509Data()
+
+        dsig_ctx = xmlsec.DSigCtx()
+
+        sign_key = xmlsec.Key.loadMemory(key, xmlsec.KeyDataFormatPem, None)
+
+        from tempfile import NamedTemporaryFile
+        cert_file = NamedTemporaryFile(delete=True)
+        cert_file.write(cert)
+        cert_file.seek(0)
+
+        sign_key.loadCert(cert_file.name, xmlsec.KeyDataFormatPem)
+
+        dsig_ctx.signKey = sign_key
+
+        # # Note: the assignment below effectively copies the key
+        dsig_ctx.sign(signature)
+
+        newdoc = parseString(etree.tostring(doc))
+
+        # signature_nodes = newdoc.getElementsByTagName("Signature")
+        #
+        # for signature in signature_nodes:
+        #     signature.removeAttribute('xmlns')
+        #     signature.setAttribute('xmlns:ds', OneLogin_Saml2_Constants.NS_DS)
+        #     if not signature.tagName.startswith('ds:'):
+        #         signature.tagName = 'ds:' + signature.tagName
+        #     nodes = signature.getElementsByTagName("*")
+        #     for node in nodes:
+        #         if not node.tagName.startswith('ds:'):
+        #             node.tagName = 'ds:' + node.tagName
+
+        return newdoc.saveXML(newdoc.firstChild)
+
+    @staticmethod
+    def add_sign_with_id(xml, uid, key, cert, debug=False, sign_algorithm=OneLogin_Saml2_Constants.RSA_SHA1):
+        """
+        Adds signature key with reference to id and senders certificate to an element (Message or
+        Assertion).
+
+        :param xml: The element we should sign
+        :type: string | Document
+
+        :param uid: uid for reference in xml namespace
+        :type: string
+
+        :param key: The private key
+        :type: string
+
+        :param cert: The public
+        :type: string
+
+        :param debug: Activate the xmlsec debug
+        :type: bool
+
+        :param sign_algorithm: Signature algorithm method
+        :type sign_algorithm: string
+        """
+        if xml is None or xml == '':
+            raise Exception('Empty string supplied as input')
+        elif isinstance(xml, etree._Element):
+            elem = xml
+        elif isinstance(xml, Document):
+            xml = xml.toxml()
+            elem = fromstring(str(xml))
+        elif isinstance(xml, Element):
+            xml.setAttributeNS(
+                unicode(OneLogin_Saml2_Constants.NS_SAMLP),
+                'xmlns:samlp',
+                unicode(OneLogin_Saml2_Constants.NS_SAMLP)
+            )
+            xml.setAttributeNS(
+                unicode(OneLogin_Saml2_Constants.NS_SAML),
+                'xmlns:saml',
+                unicode(OneLogin_Saml2_Constants.NS_SAML)
+            )
+            xml = xml.toxml()
+            elem = fromstring(str(xml))
+        elif isinstance(xml, basestring):
+            elem = fromstring(str(xml))
+        else:
+            raise Exception('Error parsing xml string')
+
+        xmlsec.initialize()
+
+        if debug:
+            xmlsec.set_error_callback(print_xmlsec_errors)
+
+        # Sign the metadata with our private key.
+        sign_algorithm_transform_map = {
+            OneLogin_Saml2_Constants.DSA_SHA1: xmlsec.TransformDsaSha1,
+            OneLogin_Saml2_Constants.RSA_SHA1: xmlsec.TransformRsaSha1,
+            OneLogin_Saml2_Constants.RSA_SHA256: xmlsec.TransformRsaSha256,
+            OneLogin_Saml2_Constants.RSA_SHA384: xmlsec.TransformRsaSha384,
+            OneLogin_Saml2_Constants.RSA_SHA512: xmlsec.TransformRsaSha512
+        }
+        sign_algorithm_transform = sign_algorithm_transform_map.get(sign_algorithm, xmlsec.TransformRsaSha1)
+
+        signature = Signature(xmlsec.TransformExclC14N, sign_algorithm_transform)
+
+        xmlsec.addIDs(elem[0], ['ID'])
+
+        issuer = OneLogin_Saml2_Utils.query(elem, '//saml:Issuer')
+        if len(issuer) > 0:
+            issuer = issuer[0]
+            issuer.addnext(signature)
+        else:
+            elem[0].insert(0, signature)
+
+        ref = signature.addReference(xmlsec.TransformSha1, uri="#%s" % uid)
         ref.addTransform(xmlsec.TransformEnveloped)
         ref.addTransform(xmlsec.TransformExclC14N)
 
