@@ -903,7 +903,7 @@ class OneLogin_Saml2_Utils(object):
          }
         sign_algorithm_transform = sign_algorithm_transform_map.get(sign_algorithm, xmlsec.TransformRsaSha1)
 
-        signature = Signature(xmlsec.TransformExclC14N, xmlsec.TransformRsaSha1)
+        signature = Signature(xmlsec.TransformExclC14N, sign_algorithm_transform)
 
         if xml is None or xml == '':
             raise Exception('Empty string supplied as input')
