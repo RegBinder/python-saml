@@ -173,6 +173,16 @@ class OneLogin_Saml2_Auth(object):
                 OneLogin_Saml2_Error.SAML_LOGOUTMESSAGE_NOT_FOUND
             )
 
+    def __repr__(self):
+        
+        return (
+            '<OneLogin_Saml2_Auth (request_data {0}, attributes {1}, settings {2}, nameId {3})>'.format(
+                self.__request_data,
+                self.__attributes,
+                self.__settings,
+                self.__nameid
+                ))
+
     def redirect_to(self, url=None, parameters={}):
         """
         Redirects the user to the url past by parameter or to the url that we defined in our SSO Request.
