@@ -161,10 +161,12 @@ class OneLogin_Saml2_Response(object):
                 any_subject_confirmation = False
                 subject_confirmation_nodes = self.__query_assertion('/saml:Subject/saml:SubjectConfirmation')
 
+                subject_confirmation_debug =''
+
                 for scn in subject_confirmation_nodes:
                     method = scn.get('Method', None)
                     if method and method != OneLogin_Saml2_Constants.CM_BEARER:
-                        print('method != OneLogin_Saml2_Constants.CM_BEARER')
+                        subject_confirmation_debug ='method != OneLogin_Saml2_Constants.CM_BEARER'
                         continue
                     sc_data = scn.find('saml:SubjectConfirmationData', namespaces=OneLogin_Saml2_Constants.NSMAP)
                     if sc_data is None:
@@ -173,29 +175,29 @@ class OneLogin_Saml2_Response(object):
                     else:
                         irt = sc_data.get('InResponseTo', None)
                         if in_response_to and irt and irt != in_response_to:
-                            print('irt != in_response_to')
+                            subject_confirmation_debug = 'irt != in_response_to'
                             continue
                         recipient = sc_data.get('Recipient', None)
                         if recipient and current_url not in recipient:
-                            print('current_url not in recipient')
+                            subject_confirmation_debug = 'current_url not in recipient'
                             continue
                         nooa = sc_data.get('NotOnOrAfter', None)
                         if nooa:
                             parsed_nooa = OneLogin_Saml2_Utils.parse_SAML_to_time(nooa)
                             if parsed_nooa <= OneLogin_Saml2_Utils.now():
-                                print('parsed_nooa does not equal now')
+                                subject_confirmation_debug = 'parsed_nooa does not equal now'
                                 continue
                         nb = sc_data.get('NotBefore', None)
                         if nb:
                             parsed_nb = OneLogin_Saml2_Utils.parse_SAML_to_time(nb)
                             if parsed_nb > OneLogin_Saml2_Utils.now():
-                                print('parsed_nb does not equal now')
+                                subject_confirmation_debug = 'parsed_nb does not equal now'
                                 continue
                         any_subject_confirmation = True
                         break
 
                 if not any_subject_confirmation:
-                    raise Exception('A valid SubjectConfirmation was not found on this Response')
+                    raise Exception('A valid SubjectConfirmation was not found on this Response. {0}'.format(subject_confirmation_debug))
 
                 if security.get('wantAssertionsSigned', False) and ('{%s}Assertion' % OneLogin_Saml2_Constants.NS_SAML) not in signed_elements:
                     raise Exception('The Assertion of the Response is not signed and the SP require it')
