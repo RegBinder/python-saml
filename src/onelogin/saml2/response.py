@@ -15,8 +15,12 @@ from lxml import etree
 from defusedxml.lxml import fromstring
 from xml.dom.minidom import Document
 
+import logging
+
 from onelogin.saml2.constants import OneLogin_Saml2_Constants
 from onelogin.saml2.utils import OneLogin_Saml2_Utils
+
+log = logging.getLogger(__name__)
 
 
 class OneLogin_Saml2_Response(object):
@@ -163,23 +167,28 @@ class OneLogin_Saml2_Response(object):
                         continue
                     sc_data = scn.find('saml:SubjectConfirmationData', namespaces=OneLogin_Saml2_Constants.NSMAP)
                     if sc_data is None:
+                        log.info('sc_data is none')
                         continue
                     else:
                         irt = sc_data.get('InResponseTo', None)
                         if in_response_to and irt and irt != in_response_to:
+                            log.info('irt != in_response_to')
                             continue
                         recipient = sc_data.get('Recipient', None)
                         if recipient and current_url not in recipient:
+                            log.info('current_url not in recipient')
                             continue
                         nooa = sc_data.get('NotOnOrAfter', None)
                         if nooa:
                             parsed_nooa = OneLogin_Saml2_Utils.parse_SAML_to_time(nooa)
                             if parsed_nooa <= OneLogin_Saml2_Utils.now():
+                                log.info('parsed_nooa does not equal now')
                                 continue
                         nb = sc_data.get('NotBefore', None)
                         if nb:
                             parsed_nb = OneLogin_Saml2_Utils.parse_SAML_to_time(nb)
                             if parsed_nb > OneLogin_Saml2_Utils.now():
+                                log.info('parsed_nb does not equal now')
                                 continue
                         any_subject_confirmation = True
                         break
