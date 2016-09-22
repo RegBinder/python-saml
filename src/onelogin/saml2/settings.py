@@ -256,6 +256,8 @@ class OneLogin_Saml2_Settings(object):
         self.__sp.setdefault('NameIDFormat', OneLogin_Saml2_Constants.NAMEID_UNSPECIFIED)
         self.__security.setdefault('nameIdEncrypted', False)
 
+        self.__security.setdefault('logoutRequestIncludeSPNameQualifier', False)
+
         # Metadata format
         self.__security.setdefault('metadataValidUntil', None)  # None means use default
         self.__security.setdefault('metadataCacheDuration', None)  # None means use default

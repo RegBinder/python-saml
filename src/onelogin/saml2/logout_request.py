@@ -65,9 +65,17 @@ class OneLogin_Saml2_Logout_Request(object):
             if 'nameIdEncrypted' in security and security['nameIdEncrypted']:
                 cert = idp_data['x509cert']
 
+            if 'logoutRequestIncludeSPNameQualifier' in security and security['logoutRequestIncludeSPNameQualifier']:
+                logout_reques_incl_SPNameQualifier = security['logoutRequestIncludeSPNameQualifier']
+            else:
+                logout_reques_incl_SPNameQualifier = False
+
             if name_id is not None:
                 nameIdFormat = sp_data['NameIDFormat']
-                spNameQualifier = None
+                if logout_reques_incl_SPNameQualifier:
+                    spNameQualifier = sp_data['entityId']
+                else:
+                    spNameQualifier = None
             else:
                 name_id = idp_data['entityId']
                 nameIdFormat = OneLogin_Saml2_Constants.NAMEID_ENTITY
